@@ -1,5 +1,6 @@
 import re
 from datetime import datetime
+from sqlalchemy import and_, or_
 
 from settings.set_db import Session
 from models.base_models import RoomReservation
@@ -13,9 +14,53 @@ class Reservation:
         err_list = []
         err_list.extend(self._check_string(in_value=first_name, name='First Name'))
         err_list.extend(self._check_string(in_value=last_name, name='Last Name'))
-        err_list.extend(self._check_int(in_value=room_num))
-        err_list.extend(self._check_dates(start_date, end_date))
-        session = Session()
+        err_list.extend(self._check_int(in_value=room_num, name='Room number'))
+        dates_errors, start_date, end_date = self._check_dates(start_date, end_date)
+        err_list.extend(dates_errors)
+        if err_list:
+            return err_list
+
+        err_list.extend(self._check_reserve(
+            room_num=room_num, new_start_date=start_date, new_end_date=end_date))
+        if err_list:
+            return err_list
+
+        new_reserve = [RoomReservation(
+            first_name=first_name, last_name=last_name, room_number=room_num,
+            start_date=start_date, end_date=end_date
+        )]
+        # session = Session()
+        # session.add(new_reserve)
+        # session.commit()
+        self._commit_session(new_reserve)
+
+        return err_list
+
+    def _check_reserve(self, room_num, new_start_date, new_end_date):
+        err_list = []
+        reserved = self.session.query(RoomReservation).filter(
+            and_(
+                RoomReservation.room_number == room_num,
+                or_(
+                    and_(
+                        RoomReservation.start_date <= new_end_date,
+                        RoomReservation.end_date >= new_end_date
+                    ),
+                    and_(
+                        RoomReservation.end_date >= new_start_date,
+                        RoomReservation.end_date <= new_start_date
+                    )
+                )
+            )
+        ).all()
+        if reserved:
+            err_list.append(ValueError('Room reservation rejection. Room is '
+                                       'already reserved'))
+        return err_list
+
+    def _commit_session(self, obj_list):
+        self.session.add_all(obj_list)
+        self.session.commit()
 
     def _check_dates(self, start_date, end_date):
         """
@@ -44,7 +89,7 @@ class Reservation:
             err_list.append(TypeError(_msg))
 
         if err_list:
-            return err_list
+            return err_list, start_date, end_date
 
         today = datetime.now().date()
         start_date = start_date.date()
@@ -56,7 +101,7 @@ class Reservation:
             err_list.append(ValueError('"end date" is earlier than start '
                                        'date'))
         # TODO: check maximum number of reservations dates and other handlers
-        return err_list
+        return err_list, start_date, end_date
 
     def _check_int(self, in_value, name):
         err_list = []
