@@ -21,22 +21,39 @@ class TestReservartions(TestCase):
                 'room_num': 51,
                 'start_date': datetime(year=2017, month=5, day=7),
                 'end_date': datetime(year=2017, month=5, day=13),
+            },
+            'reserve3': {
+                'first_name': 'Mickle',
+                'last_name': 'Jordan',
+                'room_num': 32,
+                'start_date': datetime(year=2017, month=6, day=2),
+                'end_date': datetime(year=2017, month=6, day=12),
             }
         }
 
-    def test_create(self):
+    def test_crud(self):
+        self._create()
+        self._read()
+        self._delete()
+
+    def _create(self):
         _err = self.reservetion.create(**self.reserve_data['reserve1'])
         self.assertEqual(_err, [], 'Has errors: "%s"' % _err)
 
         _err = self.reservetion.create(**self.reserve_data['reserve2'])
         self.assertNotEqual(_err, [], 'Has errors: "%s"' % _err)
 
-    def test_delete(self):
-        _err = self.reservetion.create(**self.reserve_data['reserve1'])
-        if _err:
-            print(_err)
+        _err = self.reservetion.create(**self.reserve_data['reserve3'])
+        self.assertEqual(_err, [], 'Has errors: "%s"' % _err)
 
+    def _delete(self):
         _err = self.reservetion.delete(**self.reserve_data['reserve1'])
+        self.assertEqual(_err, [], 'Has errors: "%s"' % _err)
+
+    def _read(self):
+        reserved, _err = self.reservetion.get_reserve(**self.reserve_data[
+            'reserve3'])
+        print(reserved)
         self.assertEqual(_err, [], 'Has errors: "%s"' % _err)
 
 
