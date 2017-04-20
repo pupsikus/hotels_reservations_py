@@ -33,18 +33,15 @@ class Reservation:
 
         return err_list
 
-    def delete(self, first_name='', last_name='', room_num='',
+    def delete(self, first_name=None, last_name=None, room_num=None,
                start_date=datetime.now(), end_date=datetime.now()):
         _err_list = []
         _err_list.extend(self._check_int(in_value=room_num, name='Room number'))
-        dates_errors, start_date, end_date = self._check_dates(
-            start_date, end_date)
-        _err_list.extend(dates_errors)
         if _err_list:
             return _err_list
 
         reservation, _err_list = self.get_reserve(
-            room_num, start_date, end_date)
+            room_num=room_num, start_date=start_date, end_date=end_date)
         if _err_list:
             return _err_list
 
@@ -53,8 +50,15 @@ class Reservation:
 
         return []
 
-    def get_reserve(self, room_num, start_date, end_date):
+    def get_reserve(self, first_name=None, last_name=None, room_num='',
+                    start_date=datetime.now(), end_date=datetime.now()):
         _err_list = []
+        dates_errors, start_date, end_date = self._check_dates(
+            start_date, end_date)
+        _err_list.extend(dates_errors)
+        if _err_list:
+            return _err_list
+
         reserved = self.session.query(RoomReservation).filter(
             RoomReservation.room_number == room_num,
             RoomReservation.start_date == start_date,
