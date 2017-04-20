@@ -29,12 +29,43 @@ class Reservation:
             first_name=first_name, last_name=last_name, room_number=room_num,
             start_date=start_date, end_date=end_date
         )]
-        # session = Session()
-        # session.add(new_reserve)
-        # session.commit()
-        self._commit_session(new_reserve)
+        self._commit_session_add(new_reserve)
 
         return err_list
+
+    def delete(self, first_name='', last_name='', room_num='',
+               start_date=datetime.now(), end_date=datetime.now()):
+        _err_list = []
+        _err_list.extend(self._check_int(in_value=room_num, name='Room number'))
+        dates_errors, start_date, end_date = self._check_dates(
+            start_date, end_date)
+        _err_list.extend(dates_errors)
+        if _err_list:
+            return _err_list
+
+        reservation, _err_list = self.get_reserve(
+            room_num, start_date, end_date)
+        if _err_list:
+            return _err_list
+
+        self.session.delete(reservation)
+        self.session.commit()
+
+        return []
+
+    def get_reserve(self, room_num, start_date, end_date):
+        _err_list = []
+        reserved = self.session.query(RoomReservation).filter(
+            RoomReservation.room_number == room_num,
+            RoomReservation.start_date == start_date,
+            RoomReservation.end_date == end_date).one_or_none()
+        if reserved is None:
+            _msg = ('Reservation not found for the room = {room}, '
+                    'start_date: {start_date}, end_data={end_date}').format(
+                room=room_num, start_date=start_date, end_date=end_date)
+            _err_list.append(ValueError(_msg))
+
+        return reserved, _err_list
 
     def _check_reserve(self, room_num, new_start_date, new_end_date):
         err_list = []
@@ -47,8 +78,8 @@ class Reservation:
                         RoomReservation.end_date >= new_end_date
                     ),
                     and_(
-                        RoomReservation.end_date >= new_start_date,
-                        RoomReservation.end_date <= new_start_date
+                        RoomReservation.end_date > new_start_date,
+                        RoomReservation.start_date <= new_start_date
                     )
                 )
             )
@@ -58,7 +89,7 @@ class Reservation:
                                        'already reserved'))
         return err_list
 
-    def _commit_session(self, obj_list):
+    def _commit_session_add(self, obj_list):
         self.session.add_all(obj_list)
         self.session.commit()
 

@@ -30,3 +30,13 @@ class TestReservartions(TestCase):
 
         _err = self.reservetion.create(**self.reserve_data['reserve2'])
         self.assertNotEqual(_err, [], 'Has errors: "%s"' % _err)
+
+    def test_delete(self):
+        _err = self.reservetion.create(**self.reserve_data['reserve1'])
+        if _err:
+            print(_err)
+
+        _err = self.reservetion.delete(**self.reserve_data['reserve1'])
+        self.assertEqual(_err, [], 'Has errors: "%s"' % _err)
+
+
