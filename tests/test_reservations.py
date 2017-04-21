@@ -1,7 +1,7 @@
 from unittest import TestCase
 from datetime import datetime
 
-from hotel import Reservation
+from hotel import Reservation, NewVisitor
 
 
 class TestReservartions(TestCase):
@@ -35,6 +35,9 @@ class TestReservartions(TestCase):
         self._create()
         self._read()
         self._delete()
+
+    def _update(self):
+        pass
 
     def _create(self):
         _err = self.reservetion.create(**self.reserve_data['reserve1'])
