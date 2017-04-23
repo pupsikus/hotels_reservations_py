@@ -3,6 +3,7 @@ from sqlalchemy import and_, or_
 from settings.set_db import Session
 from models.base_models import RoomReservation
 from utils.utils import check_dates_range, check_int, check_string
+from utils.exceptions import *
 
 
 class Visitor:
@@ -12,14 +13,13 @@ class Visitor:
     """
     def __init__(self, first_name, last_name, room_number,
                  start_date, end_date):
-        err_list = []
-        err_list.extend(check_string(in_value=first_name, name='First Name'))
-        err_list.extend(check_string(in_value=last_name, name='Last Name'))
-        err_list.extend(check_int(in_value=room_number, name='Room number'))
-        dates_errors, start_date, end_date = check_dates_range(start_date, end_date)
-        err_list.extend(dates_errors)
-        if err_list:
-            raise ValueError(err_list)
+        try:
+            check_string(in_value=first_name, name='First Name')
+            check_string(in_value=last_name, name='Last Name')
+            check_int(in_value=room_number, name='Room number')
+            start_date, end_date = check_dates_range(start_date, end_date)
+        except ReservationException:
+            raise VisitorException(str(ReservationException))
 
         self.first_name = first_name
         self.last_name = last_name
@@ -29,22 +29,26 @@ class Visitor:
 
 
 class Reservation:
+    """
+    Contains all methods for CRUD operations
+    """
     def __init__(self):
         self.session = Session()
 
     def create(self, visitor):
         """
-        :param visitor: Visitor object with reservation info
+        :param visitor: object with reservation data
         :type visitor: Visitor
-        :return:
         """
-        err_list = []
-        err_list.extend(self._check_reserve(
+        reserved = self._is_reserved(
             room_num=visitor.room_number,
-            new_start_date=visitor.start_date,
-            new_end_date=visitor.end_date))
-        if err_list:
-            return err_list
+            start_date=visitor.start_date,
+            end_date=visitor.end_date)
+        if reserved:
+            raise ReservationException(
+                'Room reservation rejection. Room "%s" is already reserved'
+                % visitor.room_number
+            )
 
         new_reserve = [RoomReservation(
             first_name=visitor.first_name,
@@ -54,54 +58,47 @@ class Reservation:
         )]
         self._commit_session_add(new_reserve)
 
-        return err_list
-
     def delete(self, visitor):
         """
-        :param visitor: Visitor object with reservation info
+        :param visitor: reservation data object
         :type visitor: Visitor
-        :return:
         """
-        reservation, _err_list = self.get_reserve(visitor)
-        if _err_list:
-            return _err_list
+        try:
+            reservation = self.get_reserve(visitor)
+        except ReservationException:
+            raise
 
         self.session.delete(reservation)
         self.session.commit()
 
-        return []
-
     def update(self, visitor, visitor_update):
         """
-
-        :param visitor:
+        :param visitor: old reservation data
         :type visitor: Visitor
-        :param visitor_update:
+        :param visitor_update: reservation data to update
         :type visitor_update: Visitor
-        :return:
         """
-        current_reserve, _err_list = self.get_reserve(visitor)
-        if _err_list:
-            return _err_list
+        try:
+            current_reserve = self.get_reserve(visitor)
+        except ReservationException:
+            raise
 
         reservations = self._get_crossed_reservations(
             room_num=visitor_update.room_number,
-            new_start_date=visitor_update.start_date,
-            new_end_date=visitor_update.end_date
+            start_date=visitor_update.start_date,
+            end_date=visitor_update.end_date
         )
+
         if len(reservations) > 1:
-            _err_list.append(ValueError(
+            raise ReservationValueError(
                 "Cannot update reserve as it  crosses reservation from "
-                "another visitor"))
-        if _err_list:
-            return _err_list
+                "another visitor")
 
         if reservations:
             if reservations[0] != current_reserve:
-                _err_list.append(ValueError(
-                    "Cannot update reserve as it  crosses reservation from "
-                    "another visitor"))
-                return _err_list
+                raise ReservationValueError(
+                    "Cannot update reserve as it crosses reservation from "
+                    "another visitor")
 
         current_reserve.first_name = visitor_update.first_name
         current_reserve.last_name = visitor_update.last_name
@@ -110,11 +107,29 @@ class Reservation:
         current_reserve.end_date = visitor_update.end_date
 
         self.session.commit()
-        all = self.session.query(RoomReservation).filter_by().all()
-        print(all)
-        return []
 
-    def _get_crossed_reservations(self, room_num, new_start_date, new_end_date):
+    def get_all(self):
+        """
+        :return: list of all RoomReservation objects from the table
+        """
+        return self.session.query(RoomReservation).filter_by().all()
+
+    def search_reservations_by_date_range(self, start_date, end_date):
+        reserved = self.session.query(RoomReservation).filter(
+            or_(
+                and_(
+                    RoomReservation.start_date <= end_date,
+                    RoomReservation.end_date >= end_date
+                ),
+                and_(
+                    RoomReservation.end_date >= start_date,
+                    RoomReservation.start_date <= start_date
+                )
+            )
+        ).all()
+        return reserved
+
+    def _get_crossed_reservations(self, room_num, start_date, end_date):
         """
         Check cross reservation, reservation dates must not be crossed in
         range.
@@ -127,12 +142,12 @@ class Reservation:
                 RoomReservation.room_number == room_num,
                 or_(
                     and_(
-                        RoomReservation.start_date < new_end_date,
-                        RoomReservation.end_date >= new_end_date
+                        RoomReservation.start_date < end_date,
+                        RoomReservation.end_date >= end_date
                     ),
                     and_(
-                        RoomReservation.end_date > new_start_date,
-                        RoomReservation.start_date <= new_start_date
+                        RoomReservation.end_date > start_date,
+                        RoomReservation.start_date <= start_date
                     )
                 )
             )
@@ -144,9 +159,8 @@ class Reservation:
         """
         :param visitor: Visitor object with reservation info
         :type visitor: Visitor
-        :return: RoomReservation | None, list
+        :return: RoomReservation
         """
-        _err_list = []
 
         reserved = self.session.query(RoomReservation).filter(
             RoomReservation.room_number == visitor.room_number,
@@ -158,19 +172,26 @@ class Reservation:
                     'start_date: {start_date}, end_data={end_date}').format(
                 room=visitor.room_number, start_date=visitor.start_date,
                 end_date=visitor.end_date)
-            _err_list.append(ValueError(_msg))
+            raise ReservationException(_msg)
 
-        return reserved, _err_list
+        return reserved
 
-    def _check_reserve(self, room_num, new_start_date, new_end_date):
-        err_list = []
-        reserved = self._get_crossed_reservations(room_num, new_start_date,
-                                                  new_end_date)
+    def _is_reserved(self, room_num, start_date, end_date):
+        """
+        :return: bool
+        """
+        result = False
+        reserved = self._get_crossed_reservations(room_num, start_date,
+                                                  end_date)
         if reserved:
-            err_list.append(ValueError('Room reservation rejection. Room is '
-                                       'already reserved'))
-        return err_list
+            result = True
+
+        return result
 
     def _commit_session_add(self, obj_list):
+        """
+        Add multiple objects into database
+        :param obj_list: list of objects to add into db
+        """
         self.session.add_all(obj_list)
         self.session.commit()
