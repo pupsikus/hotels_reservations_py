@@ -1,81 +1,81 @@
 from datetime import datetime
 import re
 
+from utils.exceptions import *
+
 
 def check_dates_range(start_date, end_date):
     """
     :type start_date: datetime
-    :type type end_date: datetime
-    :return: list of errors
-    :type return: list
+    :type end_date: datetime
+    :return: corrected start_date, end_date
     """
-    err_list = []
     if not start_date:
-        err_list.append(ValueError('"start date" has an empty value. '))
+        raise ReservationValueError('"start date" has an empty value. ')
 
     if not end_date:
-        err_list.append(ValueError('"end date" has an empty value. '))
+        raise ReservationValueError('"end date" has an empty value. ')
 
     if type(start_date) is not datetime:
         _msg = ('"start date" has a wrong type(not a datetime). '
                 '"start date" type = "%s", value = "%s"') \
                % (type(start_date), start_date)
-        err_list.append(TypeError(_msg))
+        raise ReservationTypeError(_msg)
 
     if type(end_date) is not datetime:
         _msg = ('"end date" has a wrong type(not a datetime). '
                 '"end date" type = "%s", value = "%s"') \
                % (type(end_date), end_date)
-        err_list.append(TypeError(_msg))
-
-    if err_list:
-        return err_list, start_date, end_date
+        raise ReservationTypeError(_msg)
 
     today = datetime.now().date()
     start_date = start_date.date()
     end_date = end_date.date()
     if start_date < today:
-        err_list.append(ValueError('"start date" is earlier than today '
-                                   'date'))
+        raise ReservationValueError('"start date" is earlier than today '
+                                'date')
     if end_date < start_date:
-        err_list.append(ValueError('"end date" is earlier than start '
-                                   'date'))
+        raise ReservationValueError('"end date" is earlier than start '
+                                'date')
     # TODO: check maximum number of reservations dates and other handlers
-    return err_list, start_date, end_date
+    return start_date, end_date
 
 
 def check_int(in_value, name):
-    err_list = []
+    """
+    :param in_value: input value
+    :type in_value: int
+    :param name: description of the input value
+    :type name: str
+    """
     if not in_value:
-        err_list.append(
-            ValueError('Empty value. Arg name = "%s"' % name))
-        return err_list
+        raise ReservationValueError('Empty value. Arg name = "%s"' % name)
 
     if type(in_value) is not int:
         _msg = ('Wrong argument type(not an interger). Arg name = "%s", '
-                'value = "%s", type = "%s"') % (name, in_value,
-                                                type(in_value))
-        err_list.append(TypeError(_msg))
+                'value = "%s", type = "%s"') % (name, in_value, type(in_value))
+        raise ReservationTypeError(_msg)
     # TODO: check maximum int number
-    return err_list
 
 
 def check_string(in_value, name):
-    err_list = []
+    """
+    :param in_value: input value
+    :type in_value: str
+    :param name: description of the input value
+    :type name: str
+    """
     if not in_value:
-        err_list.append(ValueError('Empty value. Arg name = "%s"' % name))
-        return err_list
+        raise ReservationValueError('Empty value. Arg name = "%s"' % name)
 
     if type(in_value) is not str:
         _msg = ('Wrong argument type(not a string). Arg name = "%s", '
                 'value = "%s", type = "%s"') % (name, in_value,
                                                 type(in_value))
-        err_list.append(TypeError(_msg))
+        raise ReservationValueError(_msg)
+
     _failed = re.match(r'[^a-z^A-Z]', in_value)
     if _failed:
-        err_list.append(
-            ValueError('Wrong argument value. Arg name = "%s", '
-                       'value = "%s"' % (name, in_value))
-        )
+        raise ReservationValueError(
+            'Wrong argument value. Arg name = "%s", value = "%s"' % (name, in_value))
     # TODO: check maximum string length
-    return err_list
